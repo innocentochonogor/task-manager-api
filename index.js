@@ -29,6 +29,51 @@ db.exec(`
 
 console.log("Database and tables ready");
 
+app.post('/register', (req, res) => {
+  const { name, password } = req.body;
+
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ error: "Name is required" });
+  }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+
+  const existing = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+  if (existing) {
+    return res.status(409).json({ error: "Username already taken" });
+  }
+
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const insert = db.prepare('INSERT INTO users (name, password) VALUES (?, ?)');
+  const result = insert.run(name, hashedPassword);
+
+  const newUser = db.prepare('SELECT id, name FROM users WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newUser);
+});
+
+app.post('/login', (req, res) => {
+  const { name, password } = req.body;
+
+  const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const passwordMatches = bcrypt.compareSync(password, user.password);
+  if (!passwordMatches) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const token = jwt.sign(
+    { userId: user.id, name: user.name },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  res.json({ message: "Login successful", token });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
