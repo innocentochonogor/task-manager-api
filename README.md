@@ -95,6 +95,10 @@ curl -X POST http://localhost:3000/tasks \\
 - All queries use parameterized statements to prevent SQL injection
 - Tasks are strictly scoped to their owning user (authorization, not just authentication)
 
+🔗 **Live API:** https://task-manager-api-0dzi.onrender.com
+
+*Note: hosted on Render's free tier, so the first request after inactivity may take 30-50 seconds to respond while the server wakes up.*
+
 ## Author
 
 Innocent Ochonogor
