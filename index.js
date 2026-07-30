@@ -112,6 +112,47 @@ app.get('/tasks', authenticateToken, (req, res) => {
   res.json(tasks);
 });
 
+// Get a single task (only if it belongs to the user)
+app.get('/tasks/:id', authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+  const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+
+  if (!task) {
+    return res.status(404).json({ error: "Task not found" });
+  }
+  res.json(task);
+});
+
+// Update a task
+app.put('/tasks/:id', authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+  const { title, completed } = req.body;
+
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+  if (!existing) {
+    return res.status(404).json({ error: "Task not found" });
+  }
+
+  db.prepare('UPDATE tasks SET title = ?, completed = ? WHERE id = ?')
+    .run(title ?? existing.title, completed !== undefined ? (completed ? 1 : 0) : existing.completed, id);
+
+  const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+  res.json(updated);
+});
+
+// Delete a task
+app.delete('/tasks/:id', authenticateToken, (req, res) => {
+  const id = Number(req.params.id);
+
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+  if (!existing) {
+    return res.status(404).json({ error: "Task not found" });
+  }
+
+  db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  res.json({ message: "Task deleted" });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
