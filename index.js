@@ -4,6 +4,23 @@ const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid or expired token" });
+    }
+    req.user = decoded;
+    next();
+  });
+}
+
 const app = express();
 app.use(express.json());
 
@@ -72,6 +89,27 @@ app.post('/login', (req, res) => {
   );
 
   res.json({ message: "Login successful", token });
+});
+
+// Create a task
+app.post('/tasks', authenticateToken, (req, res) => {
+  const { title } = req.body;
+
+  if (!title || title.trim() === '') {
+    return res.status(400).json({ error: "Title is required" });
+  }
+
+  const insert = db.prepare('INSERT INTO tasks (title, user_id) VALUES (?, ?)');
+  const result = insert.run(title, req.user.userId);
+
+  const newTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(newTask);
+});
+
+// Get all tasks belonging to the logged-in user
+app.get('/tasks', authenticateToken, (req, res) => {
+  const tasks = db.prepare('SELECT * FROM tasks WHERE user_id = ?').all(req.user.userId);
+  res.json(tasks);
 });
 
 const PORT = process.env.PORT || 3000;
