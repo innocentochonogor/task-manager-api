@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Task Manager</title>
+<style>
+  body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 0 20px; }
+  input { display: block; width: 100%; margin: 8px 0; padding: 8px; box-sizing: border-box; }
+  button { padding: 8px 16px; margin-top: 8px; }
+  #result { margin-top: 16px; padding: 10px; background: #f0f0f0; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<h2>Register</h2>
+<input id="regName" placeholder="Username">
+<input id="regPassword" type="password" placeholder="Password">
+<button onclick="register()">Register</button>
+
+<h2>Login</h2>
+<input id="loginName" placeholder="Username">
+<input id="loginPassword" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+
+<div id="result"></div>
+
+<script>
+  const API_URL = window.location.origin; // uses whatever domain this page is served from
+
+  async function register() {
+    const name = document.getElementById('regName').value;
+    const password = document.getElementById('regPassword').value;
+    const res = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password })
+    });
+    const data = await res.json();
+    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function login() {
+    const name = document.getElementById('loginName').value;
+    const password = document.getElementById('loginPassword').value;
+    const res = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password })
+    });
+    const data = await res.json();
+    document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+  }
+</script>
+
+</body>
+</html>

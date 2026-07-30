@@ -23,7 +23,7 @@ function authenticateToken(req, res, next) {
 
 const app = express();
 app.use(express.json());
-
+app.use(express.static('public'));
 const db = new DatabaseSync('taskmanager.db');
 
 db.exec(`
