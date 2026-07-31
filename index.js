@@ -53,7 +53,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
   const { name, password } = req.body;
 
   if (!name || name.trim() === '') {
@@ -63,23 +63,26 @@ app.post('/register', (req, res) => {
     return res.status(400).json({ error: "Password must be at least 6 characters" });
   }
 
-  const existing = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
-  if (existing) {
+  const existing = await pool.query('SELECT * FROM users WHERE name = $1', [name]);
+  if (existing.rows.length > 0) {
     return res.status(409).json({ error: "Username already taken" });
   }
 
   const hashedPassword = bcrypt.hashSync(password, 10);
-  const insert = db.prepare('INSERT INTO users (name, password) VALUES (?, ?)');
-  const result = insert.run(name, hashedPassword);
+  const result = await pool.query(
+    'INSERT INTO users (name, password) VALUES ($1, $2) RETURNING id, name',
+    [name, hashedPassword]
+  );
 
-  const newUser = db.prepare('SELECT id, name FROM users WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(newUser);
+  res.status(201).json(result.rows[0]);
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { name, password } = req.body;
 
-  const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+  const result = await pool.query('SELECT * FROM users WHERE name = $1', [name]);
+  const user = result.rows[0];
+
   if (!user) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
@@ -98,65 +101,72 @@ app.post('/login', (req, res) => {
   res.json({ message: "Login successful", token });
 });
 
-// Create a task
-app.post('/tasks', authenticateToken, (req, res) => {
+app.post('/tasks', authenticateToken, async (req, res) => {
   const { title } = req.body;
 
   if (!title || title.trim() === '') {
     return res.status(400).json({ error: "Title is required" });
   }
 
-  const insert = db.prepare('INSERT INTO tasks (title, user_id) VALUES (?, ?)');
-  const result = insert.run(title, req.user.userId);
+  const result = await pool.query(
+    'INSERT INTO tasks (title, user_id) VALUES ($1, $2) RETURNING *',
+    [title, req.user.userId]
+  );
 
-  const newTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(newTask);
+  res.status(201).json(result.rows[0]);
 });
 
-// Get all tasks belonging to the logged-in user
-app.get('/tasks', authenticateToken, (req, res) => {
-  const tasks = db.prepare('SELECT * FROM tasks WHERE user_id = ?').all(req.user.userId);
-  res.json(tasks);
+app.get('/tasks', authenticateToken, async (req, res) => {
+  const result = await pool.query('SELECT * FROM tasks WHERE user_id = $1', [req.user.userId]);
+  res.json(result.rows);
 });
 
-// Get a single task (only if it belongs to the user)
-app.get('/tasks/:id', authenticateToken, (req, res) => {
+app.get('/tasks/:id', authenticateToken, async (req, res) => {
   const id = Number(req.params.id);
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+  const result = await pool.query(
+    'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+    [id, req.user.userId]
+  );
 
-  if (!task) {
+  if (result.rows.length === 0) {
     return res.status(404).json({ error: "Task not found" });
   }
-  res.json(task);
+  res.json(result.rows[0]);
 });
 
-// Update a task
-app.put('/tasks/:id', authenticateToken, (req, res) => {
+app.put('/tasks/:id', authenticateToken, async (req, res) => {
   const id = Number(req.params.id);
   const { title, completed } = req.body;
 
-  const existing = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
-  if (!existing) {
+  const existing = await pool.query(
+    'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+    [id, req.user.userId]
+  );
+  if (existing.rows.length === 0) {
     return res.status(404).json({ error: "Task not found" });
   }
 
-  db.prepare('UPDATE tasks SET title = ?, completed = ? WHERE id = ?')
-    .run(title ?? existing.title, completed !== undefined ? (completed ? 1 : 0) : existing.completed, id);
+  const current = existing.rows[0];
+  const result = await pool.query(
+    'UPDATE tasks SET title = $1, completed = $2 WHERE id = $3 RETURNING *',
+    [title ?? current.title, completed !== undefined ? completed : current.completed, id]
+  );
 
-  const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-  res.json(updated);
+  res.json(result.rows[0]);
 });
 
-// Delete a task
-app.delete('/tasks/:id', authenticateToken, (req, res) => {
+app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   const id = Number(req.params.id);
 
-  const existing = db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, req.user.userId);
-  if (!existing) {
+  const existing = await pool.query(
+    'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+    [id, req.user.userId]
+  );
+  if (existing.rows.length === 0) {
     return res.status(404).json({ error: "Task not found" });
   }
 
-  db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+  await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
   res.json({ message: "Task deleted" });
 });
 
