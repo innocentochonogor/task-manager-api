@@ -1,8 +1,40 @@
 require('dotenv').config();
 const express = require('express');
-const { DatabaseSync } = require('node:sqlite');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+const app = express();
+app.use(express.json());
+app.use(express.static('public'));
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+async function setupDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      completed BOOLEAN DEFAULT false,
+      user_id INTEGER NOT NULL REFERENCES users(id)
+    )
+  `);
+
+  console.log("Database and tables ready");
+}
+
+setupDatabase();
 
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -20,31 +52,6 @@ function authenticateToken(req, res, next) {
     next();
   });
 }
-
-const app = express();
-app.use(express.json());
-app.use(express.static('public'));
-const db = new DatabaseSync('taskmanager.db');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL
-  )
-`);
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    completed INTEGER DEFAULT 0,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  )
-`);
-
-console.log("Database and tables ready");
 
 app.post('/register', (req, res) => {
   const { name, password } = req.body;
