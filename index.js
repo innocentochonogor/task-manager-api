@@ -1,7 +1,4 @@
 require('dotenv').config();
-console.log("DATABASE_URL present:", !!process.env.DATABASE_URL);
-console.log("JWT_SECRET present:", !!process.env.JWT_SECRET);
-
 const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
