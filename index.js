@@ -170,7 +170,12 @@ app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   res.json({ message: "Task deleted" });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+module.exports = app;
+module.exports.pool = pool;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
