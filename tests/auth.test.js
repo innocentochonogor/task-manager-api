@@ -45,6 +45,3 @@ describe('Auth routes', () => {
   });
 });
 
-afterAll(async () => {
-  await pool.end();
-});
